@@ -16,6 +16,7 @@ import cv2
 import PIL.Image as Image
 # 是否使用cuda
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+colormap = [(0,0,255),(0,255,0),(255,0,0)]
 def test():
     model = Unet(3, 3).to(device)
     model.load_state_dict(torch.load(args.ckp, map_location='cpu'))  # 载入训练好的模型
@@ -35,9 +36,10 @@ def test():
             mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
             h,w,_ = img.shape
             r = 256
-            stride = int(r*0.75)
+            stride = 256  # 3/4
             padding_h = (h//stride + 1) * stride
             padding_w = (w//stride + 1) * stride
+            print(padding_h)
             padding_img = np.zeros((int(padding_h), int(padding_w), 3), dtype=np.uint8)
             padding_mask = np.zeros((int(padding_h), int(padding_w), 3), dtype=np.uint8)
             padding_img[0:h, 0:w, :] = img[:, :, :]
@@ -45,7 +47,6 @@ def test():
             # padding_img = padding_img.astype("float") / 255.0
             # padding_img = np.array(padding_img)
             whole = np.zeros((int(padding_h), int(padding_w),3),dtype=np.uint8)
-
             for i in range(int(padding_h // stride)):
                 for j in range(int(padding_w // stride)):
                     crop = padding_img[i * stride:i * stride + r, j * stride:j * stride + r]
@@ -57,42 +58,50 @@ def test():
                     mask_crop = padding_mask[i * stride:i * stride + r, j * stride:j * stride + r]
                     tensor_type = LiverDataset3(crop,mask_crop,transform=x_transforms,
                                  target_transform=y_transforms)
+
                     for img_tensor,tar in tensor_type:
+
                         img_tensor = img_tensor.to(device)
                         tar = tar.to(device)
+                        print(img_tensor.shape)
+                        print(tar.shape)
 
                         img_tensor = img_tensor.unsqueeze(0)
-                        tar = tar.unsqueeze(0)
-
+                        tar = tar.unsqueeze(0) # 没有dataloader
                         pred = model(img_tensor)
                         # pred = torch.squeeze(pred)
-                        print(pred.shape)
-                        print(tar.shape)
                         _, predicted = torch.max(pred.data, dim=1)
-                        predicted = torch.squeeze(predicted).cpu().numpy()
+                        predicted = torch.squeeze(predicted).cpu().numpy() # （256,256）
                         tar = torch.squeeze(tar).cpu().numpy()
-
-                        print(predicted.shape)
-                        print(tar.shape)
                         dice = Dice(predicted, tar)
                         label2rgb = np.zeros((256,256,3),dtype=np.uint8)
-                        a,b = predicted.shape
-                        count = 0
-                        for x in range(a):
-                            for y in range(b):
-                                count+=1
-                                if(predicted[x][y]==2):
-                                    label2rgb[x][y] = [0,0,255]
-                                if (predicted[x][y] == 1):
-                                    label2rgb[x][y] = [0, 255, 0]
-                                if(predicted[x][y]==0):
-                                    label2rgb[x][y ] = [255,0,0]
+                        for c in range(3):
+                            label2rgb[:, :, 0] += ((predicted[:, :] == c) * (colormap[c][0])).astype('uint8')
+                            label2rgb[:, :, 1] += ((predicted[:, :] == c) * (colormap[c][1])).astype('uint8')
+                            label2rgb[:, :, 2] += ((predicted[:, :] == c) * (colormap[c][2])).astype('uint8')
+                        # a,b = predicted.shape
+                        # count = 0
+                        # for x in range(a):
+                        #     for y in range(b):
+                        #         count+=1
+                        #         if(predicted[x][y]==2):
+                        #             label2rgb[x][y] = [0,0,255]
+                        #         if (predicted[x][y] == 1):
+                        #             label2rgb[x][y] = [0, 255, 0]
+                        #         if(predicted[x][y]==0):
+                        #             label2rgb[x][y ] = [255,0,0]
+
                         whole[i * stride:i * stride + r, j * stride:j * stride + r] = label2rgb[:, :]
-                        cv2.imwrite('D:\\project\\testdata\\'+str(count)+'\\.png', label2rgb)
-                        cv2.imshow('000',label2rgb)
-                        cv2.waitKey(0)
-                        cv2.destroyAllWindows()
-                cv2.imwrite(prd_savepath,whole)
+                        label2rgb = np.array(label2rgb)
+                        label2rgb = Image.fromarray(label2rgb)
+                        plt.imshow(label2rgb)
+                        plt.pause(1)
+                        plt.show
+            whole = np.array(whole)
+            whole = Image.fromarray(whole)
+            plt.imshow(whole)
+            plt.show
+            Image.save(prd_savepath,whole)
 
 
 def Dice(inp, target, eps=1):
