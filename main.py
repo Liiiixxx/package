@@ -15,20 +15,9 @@ import os
 import cv2
 import PIL.Image as Image
 # 是否使用cuda
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-device = torch.device("cpu")
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-
-def get_data(i):
-    import dataset
-    imgs = dataset.make_dataset(r"D:\\project\\testnew\\data")
-    imgx = []
-    imgy = []
-    for img in imgs:
-        imgx.append(img[0])
-        imgy.append(img[1])
-    return imgx[i], imgy[i]
 
 
 def train_model(model, criterion, optimizer, dataload, num_epochs=1):
@@ -54,7 +43,6 @@ def train_model(model, criterion, optimizer, dataload, num_epochs=1):
             _, predicted = torch.max(outputs.data, dim=1)
             predicted = torch.squeeze(predicted).cpu().numpy()
             # print(labels.shape)
-            print(predicted.shape)
             # print(outputs)
             #
             # print(predicted)
@@ -91,16 +79,6 @@ def train():
     dataloaders = DataLoader(liver_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
     train_model(model, criterion, optimizer, dataloaders)
 
-
-
-def Dice(inp, target, eps=1):
-    # 抹平了，弄成一维的
-    input_flatten = inp.flatten()
-    target_flatten = target.flatten()
-    # 计算交集中的数量
-    overlap = np.sum(input_flatten * target_flatten)
-    # 返回值，让值在0和1之间波动
-    return np.clip(((2. * overlap) / (np.sum(target_flatten) + np.sum(input_flatten) + eps)), 1e-4, 0.9999)
 
 
 if __name__ == "__main__":
