@@ -82,23 +82,4 @@ class LiverDataset2(data.Dataset):
     def __len__(self):
         return len(self.imgs)
 
-class LiverDataset3(data.Dataset):
-    def __init__(self, img,mask, transform=None, target_transform=None):
-        self.img = img
-        self.mask = mask
-        self.transform = transform
-        self.target_transform = target_transform
 
-    def __getitem__(self, index):
-        origin_x = np.array(self.img)
-        origin_y = np.array(self.mask)
-        new_y = colormaptolabel(origin_y)
-        if self.transform is not None:
-            img_x = self.transform(origin_x)
-        # if self.target_transform is not None:
-        #     img_y = self.target_transform(new_y)
-
-        return img_x, new_y
-
-    def __len__(self):
-        return len(self.imgs)
