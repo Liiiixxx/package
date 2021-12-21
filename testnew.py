@@ -13,16 +13,17 @@ import cv2
 import PIL.Image as Image
 # 是否使用cuda
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-colormap = [(255,255,255),(0,255,0),(255,0,0)]
+colormap = [(0,0,0),(0,255,0),(255,0,0)]
 writer = SummaryWriter('./runs/examples_test')
 
 def colormaptolabel(group):
     colormap2label = np.zeros([len(group),len(group)])
-    i=0
+    # print(colormap2label.shape)
     colormap2label = colormap2label
-    for colorrgb in group:
-        colormap2label[i] = ((colorrgb[i][0]*2 + colorrgb[i][1])*1 + colorrgb[i][2])/510
-        i+=1
+    for x in range(len(group)):
+        for y in range(len(group)):
+            # print(group[x,y])
+            colormap2label[x,y] = (group[x,y,0]*2 + group[x,y,1]*1 + group[x,y,2])/255
     colormap2label = torch.from_numpy(colormap2label)
     colormap2label = colormap2label.long()
     return colormap2label
@@ -32,12 +33,16 @@ def Dice(inp, target, eps=1):
     # 抹平了，弄成一维的
     input_flatten = inp.flatten()
     target_flatten = target.flatten()
-    # 计算交集中的数量
-    r = len(input_flatten)
-    overlap_num = 0
-    for i in range(r):
-        overlap_num += (input_flatten[i] == target_flatten[i])
-    return overlap_num/(r*r)
+    input_flatten = torch.from_numpy(input_flatten)
+    input_flatten = input_flatten.long()
+    target_flatten = torch.from_numpy(target_flatten)
+    target_flatten = target_flatten.long()
+    targets_to_one_hot = torch.nn.functional.one_hot(target_flatten, num_classes=3)
+    input_to_one_hot =  torch.nn.functional.one_hot(input_flatten,num_classes=3)
+    # 求交集个数
+    intersection = (targets_to_one_hot * input_to_one_hot).sum()  # tensor类型
+    return intersection.item()/(len(input_flatten)* len(input_flatten))
+
 
 def DivideBlockValidIndex(numBlock, i, j):
     a = i != 0
@@ -71,6 +76,8 @@ def get_patch(coordinate, img):
 # 保存每次预测的结果，四维
 
 
+
+
 def test():
     model = Unet(3, 3).to(device)
     model.load_state_dict(torch.load(args.ckp, map_location='cpu'))  # 载入训练好的模型
@@ -86,6 +93,9 @@ def test():
             prd_savepath = 'D:\\project\\testnew\\whole1\\' + file + '\\prd.png'
             img = cv2.imread(img_path)
             mask = cv2.imread(mask_path)
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            mask = cv2.cvtColor(mask, cv2.COLOR_BGR2RGB)
+
 
             sizeImg = np.shape(img)[0:2]  # 长宽
             sizeImg = np.array(sizeImg, dtype=np.float32)
@@ -110,17 +120,22 @@ def test():
                 position = (int(d1[0]), int(d1[1]))
                 crop = get_patch(position, imgPad)  # 得到小块的图
                 mask_crop = get_patch(position,maskpad)
-                mask_num_label_tensor = colormaptolabel(mask_crop)  # (256,256)
-                img_tensor = torch.from_numpy(crop.transpose((2, 0, 1)))
+                mask_num_label_tensor = colormaptolabel(mask_crop)  #  (256,256)
+                # print(mask_num_label_tensor)
+
+                img_tensor = torch.from_numpy(crop.transpose((2, 0, 1)))  # rgb
                 img_tensor = img_tensor.float().div(255)
                 img_tensor = img_tensor.to(device)  # torch.Size([3, 256, 256])
                 mask_num_label_tensor = mask_num_label_tensor.to(device)  # torch.Size([256, 256])
+
                 img_tensor = img_tensor.unsqueeze(0)
                 tar = mask_num_label_tensor.unsqueeze(0)  # 没有dataloader
                 pred = model(img_tensor)
                 _, predicted = torch.max(pred.data, dim=1)
                 predicted = torch.squeeze(predicted).cpu().numpy()  # （256,256）
+                print(predicted.shape)
                 tar = torch.squeeze(tar).cpu().numpy()
+                # 转onehot编码
 
                 # 得到的索引值和标签类别值一致（对应）吗
                 dice = Dice(predicted, tar)
@@ -169,7 +184,7 @@ if __name__ == "__main__":
     # parse = argparse.ArgumentParser()
     parse.add_argument("--action", type=str, help="train or test", default="train")
     parse.add_argument("--batch_size", type=int, default=1)
-    parse.add_argument("--ckp", type=str, help="D:\project\weights.pth")
+    parse.add_argument("--ckp", type=str, help="D:\project\weights_5.pth")
     args = parse.parse_args()
-    args.ckp = r"D:\project\weights.pth"
+    args.ckp = r"D:\project\weights_5.pth"
     test()

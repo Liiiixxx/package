@@ -15,13 +15,13 @@ def make_dataset(root):
 
 # 构建从rgb到类别的映射
 def colormaptolabel(group):
-    # print(len(group))
     colormap2label = np.zeros([len(group),len(group)])
-    i=0
+    print(colormap2label.shape)
     colormap2label = colormap2label
-    for colorrgb in group:
-        colormap2label[i] = ((colorrgb[i][0]*2 + colorrgb[i][1])*1 + colorrgb[i][2])/510
-        i+=1
+    for x in range(len(group)):
+        for y in range(len(group)):
+            print(group[x,y])
+            colormap2label[x,y] = (group[x,y,0]*2 + group[x,y,1]*1 + group[x,y,2])/255
     colormap2label = torch.from_numpy(colormap2label)
     colormap2label = colormap2label.long()
     return colormap2label
